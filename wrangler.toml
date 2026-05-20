@@ -1,4 +1,4 @@
-name = "position-sizing-calculator"
+name = "position-sizing-calculator-cloudflare"
 main = "worker.js"
 compatibility_date = "2026-05-20"
 
