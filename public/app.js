@@ -41,6 +41,8 @@ const state = {
   searchTimer: null,
 };
 
+const RPT_STORAGE_KEY = "positionSizingCalculator:rptKrw";
+
 const currencySymbols = {
   KRW: "₩",
   USD: "$",
@@ -77,6 +79,25 @@ function addThousandsSeparators(value) {
 
 function formatControlledInput(input) {
   input.value = addThousandsSeparators(input.value);
+}
+
+function saveRptValue() {
+  try {
+    localStorage.setItem(RPT_STORAGE_KEY, rptEl.value);
+  } catch {
+    // Some privacy modes can block localStorage; the calculator still works without persistence.
+  }
+}
+
+function restoreRptValue() {
+  try {
+    const savedValue = localStorage.getItem(RPT_STORAGE_KEY);
+    if (savedValue) {
+      rptEl.value = addThousandsSeparators(savedValue);
+    }
+  } catch {
+    // Ignore storage errors so loading the calculator never depends on browser storage.
+  }
 }
 
 function formatMoney(value) {
@@ -506,7 +527,10 @@ shortBtn.addEventListener("click", () => setDirection("short"));
 [rptEl, entryEl, stopEl].forEach((input) =>
   input.addEventListener("input", () => {
     formatControlledInput(input);
-    if (input === rptEl) debounceFx();
+    if (input === rptEl) {
+      saveRptValue();
+      debounceFx();
+    }
     calculate();
   })
 );
@@ -525,6 +549,7 @@ function clearLoadedInputs() {
 }
 
 queryEl.value = "삼성전자";
+restoreRptValue();
 updateDateModeLabels();
 updatePricePrefixes();
 refreshFx();
