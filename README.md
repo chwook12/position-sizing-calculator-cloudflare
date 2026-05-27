@@ -6,25 +6,22 @@ Cloudflare Workers용 주식 포지션 사이징 계산기입니다.
 
 - 종목명 또는 심볼 검색
 - KR, US, JP, HK, CN, VN 마켓 선택
-- 한국 종목은 KRX 기준으로 조회
-- KRX 기본 데이터는 Naver/KRX, 실패 시 Yahoo Finance 한국 종목 데이터로 자동 대체
-- 해외 종목은 Yahoo Finance 차트 데이터 사용
-- 일봉/주봉 선택
-- 진입가와 손절가의 기준 거래일/거래주를 각각 최신/직전으로 선택
-- RPT는 원화 기준으로 입력하고 선택 통화로 환산해 수량 계산
-- 해외 통화 포지션 사이즈에는 원화 환산값도 함께 표시
+- 한국 종목은 Yahoo Finance의 `.KS` / `.KQ` KRX 데이터 기준으로 조회
+- 해외 종목은 Yahoo Finance 차트 데이터 기준으로 조회
+- 일봉 / 주봉 선택
+- 진입가와 손절가를 각각 최신 거래일 / 직전 거래일로 선택
+- RPT는 원화 기준으로 입력하고 선택 통화로 자동 환산
+- 해외 통화 포지션 사이즈에 원화 환산값 표시
 
-## 원본 백업
+## 백업
 
-Python/Render/NXT 버전 원본은 작업 전 별도 폴더에 백업했습니다.
+Python / Render / NXT / KIS 버전 원본은 작업 전 별도 폴더에 백업했습니다.
 
 ```text
 C:\Work\VSCode\Finance_backup_20260520_115519
 ```
 
 ## 로컬 실행
-
-Node.js가 설치되어 있다면:
 
 ```powershell
 npm install
@@ -55,4 +52,5 @@ public/app.js      # 브라우저 계산 로직
 
 ## 참고
 
-NXT 실시간 조회와 한국투자 API 키는 Cloudflare Workers 버전에서 제거했습니다. 무료 서버리스 배포에 맞춰 KRX 기준 조회만 유지합니다.
+NXT 실시간 조회와 한국투자 API 키는 Cloudflare Workers 버전에서 제거했습니다.
+한국 종목 가격 조회는 NXT 값이 섞일 수 있는 네이버 가격 API 대신 Yahoo Finance KRX 데이터를 사용합니다.

@@ -94,19 +94,6 @@ function normalizeTradingDate(value) {
   return text.split(" ")[0];
 }
 
-function dateFromText(value) {
-  const normalized = normalizeTradingDate(value);
-  if (!normalized) return null;
-  const date = new Date(`${normalized}T00:00:00Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function periodLabel(dates) {
-  if (!dates.length) return null;
-  const ordered = dates.map((date) => date.toISOString().slice(0, 10)).sort();
-  return ordered[0] === ordered.at(-1) ? ordered.at(-1) : `${ordered[0]}~${ordered.at(-1)}`;
-}
-
 function tradingDateFromTimestamp(timestamp, timezoneName) {
   if (timestamp == null) return null;
   const number = Number(timestamp);
@@ -309,13 +296,19 @@ async function fetchNaverKrxQuote(symbol, dateMode, candle) {
   };
 }
 
-async function fetchYahooKrxFallbackQuote(symbol, dateMode, candle) {
+async function fetchYahooKrxQuote(symbol, dateMode, candle) {
   const code = naverDomesticCode(symbol);
-  const chart = candle === "W" ? await fetchWeeklyChart(symbol, dateMode) : await fetchDailyChartBar(symbol, dateMode);
+  const normalizedSymbol = `${code}${String(symbol).toUpperCase().endsWith(".KQ") ? ".KQ" : ".KS"}`;
+  const chart =
+    candle === "W"
+      ? await fetchWeeklyChart(normalizedSymbol, dateMode)
+      : dateMode === "PREV"
+        ? await fetchDailyChartBar(normalizedSymbol, dateMode)
+        : await fetchKrxLatestDailyChart(normalizedSymbol);
   const periodName = candle === "W" ? "주봉" : "일봉";
   const modeName = dateMode === "PREV" ? "직전" : "최신";
   return {
-    symbol: `${code}${String(symbol).toUpperCase().endsWith(".KQ") ? ".KQ" : ".KS"}`,
+    symbol: normalizedSymbol,
     name: chart.name || code,
     currency: "KRW",
     exchange: chart.exchange || "KRX",
@@ -325,10 +318,44 @@ async function fetchYahooKrxFallbackQuote(symbol, dateMode, candle) {
     previousClose: chart.previousClose,
     timestamp: chart.timestamp,
     tradingDate: chart.tradingDate,
-    source: `Yahoo Finance KRX fallback ${modeName} ${periodName}`,
+    source: `Yahoo Finance KRX ${modeName} ${periodName}`,
     dateMode,
     candle,
   };
+}
+
+async function fetchKrxLatestDailyChart(symbol) {
+  const [dailyResult, intradayResult] = await Promise.allSettled([
+    fetchDailyChartBar(symbol, "TODAY"),
+    fetchIntradayChart(symbol),
+  ]);
+
+  if (dailyResult.status === "fulfilled" && intradayResult.status === "fulfilled") {
+    const daily = dailyResult.value;
+    const intraday = intradayResult.value;
+
+    if (intraday.tradingDate && daily.tradingDate && intraday.tradingDate > daily.tradingDate) {
+      return intraday;
+    }
+
+    if (intraday.tradingDate && daily.tradingDate && intraday.tradingDate === daily.tradingDate) {
+      const lows = [daily.dayLow, intraday.dayLow].filter((value) => Number.isFinite(value) && value > 0);
+      const highs = [daily.dayHigh, intraday.dayHigh].filter((value) => Number.isFinite(value) && value > 0);
+      return {
+        ...intraday,
+        dayLow: lows.length ? Math.min(...lows) : intraday.dayLow || daily.dayLow,
+        dayHigh: highs.length ? Math.max(...highs) : intraday.dayHigh || daily.dayHigh,
+        previousClose: daily.previousClose ?? intraday.previousClose,
+      };
+    }
+
+    return daily;
+  }
+
+  if (dailyResult.status === "fulfilled") return dailyResult.value;
+  if (intradayResult.status === "fulfilled") return intradayResult.value;
+
+  throw dailyResult.reason || intradayResult.reason || new Error("KRX price data not found.");
 }
 
 async function fetchIntradayChart(symbol) {
@@ -422,15 +449,10 @@ async function quoteSymbol(symbol, market, dateMode = "TODAY", candle = "D") {
   for (const candidate of normalizeSymbol(symbol, market)) {
     if (market === "KR" || naverDomesticCode(candidate)) {
       try {
-        return await fetchNaverKrxQuote(candidate, normalizedDateMode, normalizedCandle);
+        return await fetchYahooKrxQuote(candidate, normalizedDateMode, normalizedCandle);
       } catch (error) {
         lastError = error.message;
-        try {
-          return await fetchYahooKrxFallbackQuote(candidate, normalizedDateMode, normalizedCandle);
-        } catch (fallbackError) {
-          lastError = fallbackError.message;
-          continue;
-        }
+        continue;
       }
     }
 
